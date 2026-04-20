@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+# Ensure repo root is on sys.path so `from app.xxx` imports work
+_ROOT = Path(__file__).parent.parent.resolve()
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 """
 B&G Engineering — Offer Generator (Streamlit UI)
 
