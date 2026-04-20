@@ -334,4 +334,135 @@ def _tab_scope():
         data["scope_atfd"] = edited.to_dict("records")
     with sub_tabs[3]:
         df = pd.DataFrame(data["instruments"])
-        edited = st.data_editor(df, use_container_width=True, n
+        edited = st.data_editor(df, use_container_width=True, num_rows="dynamic", key="sc_inst")
+        data["instruments"] = edited.to_dict("records")
+
+
+# ---------------------------------------------------------------------
+# TAB 7: BATTERY LIMITS + SCOPE MATRIX
+# ---------------------------------------------------------------------
+def _tab_scope_matrix():
+    st.subheader("PART VII & VIII — Battery Limits & Scope Matrix")
+    import pandas as pd
+    data = st.session_state.offer_data
+
+    with st.expander("Battery Limits (PART VII)", expanded=True):
+        bl_text = "\n".join(data["battery_limits"])
+        new_bl = st.text_area("One item per line", value=bl_text, height=300, key="bl_area")
+        data["battery_limits"] = [l.strip() for l in new_bl.split("\n") if l.strip()]
+
+    with st.expander("Scope Matrix (PART VIII)", expanded=True):
+        df = pd.DataFrame(data["scope_matrix"])
+        edited = st.data_editor(df, use_container_width=True, num_rows="dynamic", key="scope_mat")
+        data["scope_matrix"] = edited.to_dict("records")
+
+
+# ---------------------------------------------------------------------
+# TAB 8: PRICING & TERMS
+# ---------------------------------------------------------------------
+def _tab_pricing():
+    st.subheader("PART X — Price & Commercial Terms")
+    pr = st.session_state.offer_data["pricing"]
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Option 1**")
+        pr["option1_moc"] = st.text_input("MOC", value=pr["option1_moc"], key="p_o1_moc")
+        pr["option1_equipment_price_cr"] = st.number_input("Equipment (Cr)", value=float(pr["option1_equipment_price_cr"]), step=0.01, key="p_o1_eq")
+        pr["option1_install_lakhs"] = st.number_input("Install (Lakhs)", value=float(pr["option1_install_lakhs"]), step=1.0, key="p_o1_ic")
+        pr["option1_total_cr"] = st.number_input("Total (Cr)", value=float(pr["option1_total_cr"]), step=0.01, key="p_o1_tot")
+    with c2:
+        st.markdown("**Option 2**")
+        pr["option2_moc"] = st.text_input("MOC", value=pr["option2_moc"], key="p_o2_moc")
+        pr["option2_equipment_price_cr"] = st.number_input("Equipment (Cr)", value=float(pr["option2_equipment_price_cr"]), step=0.01, key="p_o2_eq")
+        pr["option2_install_lakhs"] = st.number_input("Install (Lakhs)", value=float(pr["option2_install_lakhs"]), step=1.0, key="p_o2_ic")
+        pr["option2_total_cr"] = st.number_input("Total (Cr)", value=float(pr["option2_total_cr"]), step=0.01, key="p_o2_tot")
+
+    c1, c2 = st.columns(2)
+    pr["location_dap"] = c1.text_input("Location (DAP)", value=pr["location_dap"], key="p_loc")
+    pr["price_validity_days"] = c2.number_input("Price Validity (Days)", value=int(pr["price_validity_days"]), min_value=1, max_value=365, key="p_val")
+
+    st.markdown("**Payment Terms**")
+    pt_text = "\n".join(pr["payment_terms"])
+    new_pt = st.text_area("One term per line", value=pt_text, height=180, key="pt_area")
+    pr["payment_terms"] = [l.strip() for l in new_pt.split("\n") if l.strip()]
+
+
+# ---------------------------------------------------------------------
+# TAB 9: GENERATE
+# ---------------------------------------------------------------------
+def _tab_generate():
+    st.subheader("🚀 Generate Offer DOCX")
+    d = st.session_state.offer_data
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Client", d["cover"]["submitted_to"])
+    c2.metric("Capacity", f"{d['cover']['capacity_kld']} KLD")
+    c3.metric("Option 1 Total", f"₹{d['pricing']['option1_total_cr']:.2f} Cr")
+
+    st.divider()
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        if st.button("🔨 Generate Offer DOCX", type="primary", use_container_width=True):
+            with st.spinner("Building DOCX..."):
+                try:
+                    # Logos are None for now — will be added from Supabase later
+                    docx_bytes = generate_offer_docx(d, logo_path=None, tagline_path=None, hero_path=None)
+                    st.session_state.generated_docx = docx_bytes
+                    st.success(f"✅ Generated: {len(docx_bytes)/1024:.1f} KB")
+                except Exception as e:
+                    st.error(f"Generation failed: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+
+    with col2:
+        if st.button("🔄 Reset", use_container_width=True):
+            _reset_data()
+
+    if "generated_docx" in st.session_state:
+        st.download_button(
+            label="📥 Download Offer DOCX",
+            data=st.session_state.generated_docx,
+            file_name=f"Quote_{d['cover']['quote_ref'].replace('/', '_')}_{d['cover']['capacity_kld']}KLD.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+        )
+
+
+# ---------------------------------------------------------------------
+# TAB 10: TEMPLATES & BRIDGE
+# ---------------------------------------------------------------------
+def _tab_templates():
+    st.subheader("📥 Form Template & Process Design Bridge")
+
+    with st.expander("📋 Download Excel Form Template", expanded=True):
+        if st.button("Generate Excel Template", key="gen_xlsx"):
+            xlsx_bytes = generate_form_template_xlsx()
+            st.session_state.xlsx_template = xlsx_bytes
+        if "xlsx_template" in st.session_state:
+            st.download_button(
+                label="📥 Download Template (.xlsx)",
+                data=st.session_state.xlsx_template,
+                file_name="BG_Offer_Form_Template.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+    with st.expander("🔗 Import from bg_process_design JSON", expanded=True):
+        uploaded = st.file_uploader("Upload full_project.json", type=["json"], key="pd_json")
+        if uploaded:
+            try:
+                content = uploaded.read().decode("utf-8")
+                process_json = parse_process_design_json(content)
+                if st.button("🔀 Import into form", type="primary", key="btn_bridge"):
+                    new_data = bridge_to_offer_data(process_json, existing_data=st.session_state.offer_data)
+                    st.session_state.offer_data = new_data
+                    st.success("✅ Process design imported!")
+                    for line in summarize_bridge_result(process_json, new_data):
+                        st.markdown(line)
+            except Exception as e:
+                st.error(f"Failed to parse JSON: {e}")
+
+
+if __name__ == "__main__":
+    main()
