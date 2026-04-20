@@ -12,6 +12,7 @@ Branded UI for generating techno-commercial offer DOCX documents.
 """
 import streamlit as st
 from pathlib import Path
+_ASSET_DIR = Path(__file__).parent / "assets"
 from datetime import date
 
 from app.utils.brand import BRAND, COMPANY, OFFER_TOC
